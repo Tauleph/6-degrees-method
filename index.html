@@ -9,9 +9,9 @@
   * { box-sizing: border-box; margin: 0; padding: 0; touch-action: none; }
   body { background: #f0ece4; display: flex; flex-direction: column; align-items: center; padding: 1rem 0; gap: 12px; min-height: 100vh; }
 
-  #tabs { display: flex; gap: 0; border: 1px solid #a09080; border-radius: 8px; overflow-x: auto; overflow-y: hidden; width: 320px; scrollbar-width: none; }
+  #tabs { display: flex; gap: 0; border: 1px solid #a09080; border-radius: 8px; overflow-x: auto; overflow-y: hidden; width: 320px; scrollbar-width: none; touch-action: pan-x; }
   #tabs::-webkit-scrollbar { display: none; }
-  .tab { font-size: 22px; padding: 6px 18px; background: #fff; color: #888; cursor: pointer; border: none; border-right: 1px solid #e0d8d0; font-family: 'Noto Serif JP', serif; transition: background 0.15s; flex-shrink: 0; }
+  .tab { font-size: 22px; padding: 6px 18px; background: #fff; color: #888; cursor: pointer; border: none; border-right: 1px solid #e0d8d0; font-family: 'Noto Serif JP', serif; transition: background 0.15s; flex-shrink: 0; touch-action: pan-x; }
   .tab:last-child { border-right: none; }
   .tab.active { background: #6b4c2a; color: #fff; }
 
@@ -77,6 +77,28 @@ tabsEl.addEventListener('wheel', (e) => {
   e.preventDefault();
   tabsEl.scrollLeft += e.deltaY;
 }, { passive: false });
+
+let tabsDragging = false;
+let tabsDragStartX = 0;
+let tabsScrollStart = 0;
+let tabsDragged = false;
+tabsEl.addEventListener('mousedown', (e) => {
+  tabsDragging = true;
+  tabsDragged = false;
+  tabsDragStartX = e.clientX;
+  tabsScrollStart = tabsEl.scrollLeft;
+  tabsEl.style.cursor = 'grabbing';
+});
+window.addEventListener('mousemove', (e) => {
+  if (!tabsDragging) return;
+  const dx = e.clientX - tabsDragStartX;
+  if (Math.abs(dx) > 4) tabsDragged = true;
+  tabsEl.scrollLeft = tabsScrollStart - dx;
+});
+window.addEventListener('mouseup', () => {
+  tabsDragging = false;
+  tabsEl.style.cursor = '';
+});
 CHARS.forEach((ch, i) => {
   const btn = document.createElement('button');
   btn.className = 'tab' + (i === 0 ? ' active' : '');
@@ -123,6 +145,7 @@ function clearCanvas() {
 
 // ---- タブ切り替え ----
 tabsEl.addEventListener('click', (e) => {
+  if (tabsDragged) { tabsDragged = false; return; }
   const tab = e.target.closest('.tab');
   if (!tab) return;
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
