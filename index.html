@@ -1,6 +1,205 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>六度法 運筆練習</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; touch-action: none; }
+  body { background: #f0ece4; display: flex; flex-direction: column; align-items: center; padding: 1rem 0; gap: 12px; min-height: 100vh; }
+
+  #tabs { display: flex; gap: 0; border: 1px solid #a09080; border-radius: 8px; overflow-x: auto; overflow-y: hidden; width: 320px; scrollbar-width: none; }
+  #tabs::-webkit-scrollbar { display: none; }
+  .tab { font-size: 22px; padding: 6px 18px; background: #fff; color: #888; cursor: pointer; border: none; border-right: 1px solid #e0d8d0; font-family: 'Noto Serif JP', serif; transition: background 0.15s; flex-shrink: 0; }
+  .tab:last-child { border-right: none; }
+  .tab.active { background: #6b4c2a; color: #fff; }
+
+  #canvas-wrap { position: relative; width: 320px; height: 320px; border: 1px solid #a09080; border-radius: 8px; overflow: hidden; background: #f8f5ef; }
+  canvas { position: absolute; top: 0; left: 0; }
+
+  #controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  button { font-size: 14px; padding: 6px 18px; border-radius: 8px; border: 1px solid #a09080; background: #fff; color: #333; cursor: pointer; }
+  button:active { transform: scale(0.97); }
+  button.active { background: #6b4c2a; color: #fff; border-color: #6b4c2a; }
+</style>
+</head>
 <body>
-    <h1>六度法練習アプリ</h1>
+
+<div id="tabs"></div>
+
+<div id="canvas-wrap">
+  <canvas id="c-guide"  width="320" height="320"></canvas>
+  <canvas id="c-model"  width="320" height="320"></canvas>
+  <canvas id="c-draw"   width="320" height="320"></canvas>
+</div>
+
+<div id="controls">
+  <button id="btn-model">お手本 ON</button>
+  <button id="btn-undo">もどす</button>
+  <button id="btn-clear">クリア</button>
+</div>
+
+<script>
+const guideCanvas = document.getElementById('c-guide');
+const modelCanvas = document.getElementById('c-model');
+const drawCanvas  = document.getElementById('c-draw');
+const gc = guideCanvas.getContext('2d');
+const mc = modelCanvas.getContext('2d');
+const dc = drawCanvas.getContext('2d');
+const W = 320, H = 320;
+const DEG = 6 * Math.PI / 180;
+
+// ---- ガイド線 ----
+function drawGuide() {
+  gc.clearRect(0, 0, W, H);
+  gc.strokeStyle = '#b8a898';
+  gc.lineWidth = 0.7;
+  gc.globalAlpha = 0.5;
+  const spacing = 24;
+  const tan = Math.tan(DEG);
+  gc.beginPath();
+  for (let y = -H; y < H * 2; y += spacing) {
+    gc.moveTo(0, y);
+    gc.lineTo(W, y - W * tan);
+  }
+  gc.stroke();
+  gc.globalAlpha = 1;
+}
+
+drawGuide();
+
+// ---- 文字リスト ----
+const CHARS = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '日', '月', '火', '水', '木', '金', '土'];
+
+const tabsEl = document.getElementById('tabs');
+tabsEl.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  tabsEl.scrollLeft += e.deltaY;
+}, { passive: false });
+CHARS.forEach((ch, i) => {
+  const btn = document.createElement('button');
+  btn.className = 'tab' + (i === 0 ? ' active' : '');
+  btn.dataset.char = ch;
+  btn.textContent = ch;
+  tabsEl.appendChild(btn);
+});
+
+// ---- お手本 ----
+let currentChar = '一';
+let modelVisible = true;
+
+function drawModel() {
+  mc.clearRect(0, 0, W, H);
+  if (!modelVisible) return;
+
+  mc.save();
+  mc.globalAlpha = 0.25;
+  mc.fillStyle = '#1a1008';
+  mc.font = '220px "Noto Serif JP", serif';
+  mc.textAlign = 'center';
+  mc.textBaseline = 'middle';
+
+  // せん断変換（横方向にshear、縦線は垂直のまま横線が右上に傾く）
+  mc.translate(W / 2, H / 2);
+  mc.transform(1, -Math.tan(DEG), 0, 1, 0, 0);
+  mc.fillText(currentChar, 0, 0);
+  mc.restore();
+}
+
+// フォント読み込み後に描画
+document.fonts.ready.then(() => drawModel());
+
+// ---- 履歴・クリア ----
+let drawing = false;
+let lastX = 0, lastY = 0;
+const history = [];
+const MAX_HISTORY = 20;
+
+function clearCanvas() {
+  dc.clearRect(0, 0, W, H);
+  history.length = 0;
+}
+
+// ---- タブ切り替え ----
+tabsEl.addEventListener('click', (e) => {
+  const tab = e.target.closest('.tab');
+  if (!tab) return;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  currentChar = tab.dataset.char;
+  drawModel();
+  clearCanvas();
+});
+
+// ---- お手本 表示/非表示 ----
+const btnModel = document.getElementById('btn-model');
+btnModel.addEventListener('click', () => {
+  modelVisible = !modelVisible;
+  btnModel.textContent = modelVisible ? 'お手本 ON' : 'お手本 OFF';
+  btnModel.classList.toggle('active', !modelVisible);
+  drawModel();
+});
+
+// ---- 描画 ----
+dc.lineCap = 'round';
+dc.lineJoin = 'round';
+dc.strokeStyle = '#1a1008';
+dc.lineWidth = 8;
+
+function getPos(e) {
+  const rect = drawCanvas.getBoundingClientRect();
+  const src = e.touches ? e.touches[0] : e;
+  return [src.clientX - rect.left, src.clientY - rect.top];
+}
+
+function startDraw(e) {
+  e.preventDefault();
+  history.push(dc.getImageData(0, 0, W, H));
+  if (history.length > MAX_HISTORY) history.shift();
+  drawing = true;
+  [lastX, lastY] = getPos(e);
+  dc.beginPath();
+  dc.arc(lastX, lastY, dc.lineWidth / 2, 0, Math.PI * 2);
+  dc.fillStyle = '#1a1008';
+  dc.fill();
+}
+
+function moveDraw(e) {
+  e.preventDefault();
+  if (!drawing) return;
+  const [x, y] = getPos(e);
+  dc.beginPath();
+  dc.moveTo(lastX, lastY);
+  dc.lineTo(x, y);
+  dc.stroke();
+  [lastX, lastY] = [x, y];
+}
+
+function endDraw(e) {
+  e.preventDefault();
+  drawing = false;
+}
+
+drawCanvas.addEventListener('touchstart', startDraw, { passive: false });
+drawCanvas.addEventListener('touchmove',  moveDraw,  { passive: false });
+drawCanvas.addEventListener('touchend',   endDraw,   { passive: false });
+drawCanvas.addEventListener('mousedown',  startDraw);
+drawCanvas.addEventListener('mousemove',  moveDraw);
+drawCanvas.addEventListener('mouseup',    endDraw);
+drawCanvas.addEventListener('mouseleave', endDraw);
+
+document.getElementById('btn-undo').addEventListener('click', () => {
+  if (history.length === 0) return;
+  dc.putImageData(history.pop(), 0, 0);
+});
+
+function clearCanvas() {
+  dc.clearRect(0, 0, W, H);
+  history.length = 0;
+}
+
+document.getElementById('btn-clear').addEventListener('click', clearCanvas);
+</script>
 </body>
 </html>
